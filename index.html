@@ -7,12 +7,12 @@
     <style>
         /* --- 모던 디자인을 위한 새로운 색상 변수 --- */
         :root {
-            --bg-color: #f7f9fc; /* 밝은 배경 */
-            --card-color: #ffffff; /* 흰색 카드 배경 */
-            --primary-color: #6c63ff; /* 메인 강조색 (보라색) */
-            --secondary-color: #00bcd4; /* 보조 강조색 (청록색) */
-            --success-color: #4caf50; /* 성공/시작 (녹색) */
-            --danger-color: #f44336; /* 위험/정지 (빨간색) */
+            --bg-color: #f7f9fc; 
+            --card-color: #ffffff; 
+            --primary-color: #6c63ff; 
+            --secondary-color: #00bcd4; 
+            --success-color: #4caf50; 
+            --danger-color: #f44336; 
             --text-dark: #212121;
             --text-light: #757575;
             --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -35,7 +35,7 @@
 
         .container {
             background-color: var(--card-color);
-            border-radius: 20px; /* 둥근 모서리 */
+            border-radius: 20px; 
             padding: 40px;
             width: 400px;
             text-align: center;
@@ -51,7 +51,6 @@
             font-weight: 600;
         }
 
-        /* --- 상태 표시등 (Status Light) --- */
         .status-light {
             width: 15px;
             height: 15px;
@@ -83,13 +82,15 @@
             to { opacity: 0.8; transform: scale(1.1); }
         }
 
-        /* --- 타이머 및 모드 표시 --- */
+        /* --- 타이머 표시 --- */
         .timer-display {
             font-size: 6rem;
             font-weight: 700;
             margin: 10px 0 5px;
+            /* 초기 색상은 검정으로 설정 */
             color: var(--text-dark);
             letter-spacing: -3px;
+            transition: color 0.3s ease;
         }
 
         .current-mode {
@@ -100,7 +101,6 @@
             text-transform: uppercase;
         }
 
-        /* --- 진행률 표시줄 --- */
         .progress-bar {
             width: 100%;
             height: 8px;
@@ -117,11 +117,10 @@
             border-radius: 4px;
         }
         
-        /* --- 제어 버튼 --- */
         .controls {
             display: flex;
             justify-content: center;
-            flex-wrap: wrap; /* 버튼이 많아지면 줄바꿈 */
+            flex-wrap: wrap; 
             gap: 10px;
         }
 
@@ -162,7 +161,6 @@
             font-size: 0.8rem;
         }
 
-        /* --- 통계 패널 --- */
         .stats-panel {
             margin-top: 30px;
             padding: 15px 0;
@@ -186,14 +184,13 @@
             margin-top: 5px;
         }
 
-        /* --- 퀴즈 모달 (Quiz Modal) --- */
         .modal-overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.95); /* 반투명 흰색 오버레이 */
+            background: rgba(255, 255, 255, 0.95); 
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -307,23 +304,19 @@
 </div>
 
 <script>
-    // System Configuration
     const WORK_TIME = 50 * 60;
     const BREAK_TIME = 10 * 60;
     const QUIZ_TIMEOUT = 15;
 
-    // State Variables
     let timeLeft = WORK_TIME;
     let isWorkMode = true;
     let isRunning = false;
     let timerInterval = null;
     let totalTime = WORK_TIME;
     
-    // --- 통계 변수 ---
     let cycleCount = 0;
     let stopCount = 0;
 
-    // DOM Elements
     const timerDisplay = document.getElementById('timerDisplay');
     const modeDisplay = document.getElementById('currentMode');
     const statusLight = document.getElementById('statusLight');
@@ -333,11 +326,9 @@
     const quizInput = document.getElementById('quizInput');
     const insultText = document.getElementById('insultText');
     const quizTimerDisplay = document.getElementById('quizTimer');
-    // --- 통계 DOM 요소 ---
     const cycleCountSpan = document.getElementById('cycleCount');
     const stopCountSpan = document.getElementById('stopCount');
 
-    // Harsh Criticisms (내용은 그대로 유지)
     const insults = [
         "경고: 기본 연산 실패.\n당신의 두뇌 가동률은 폐기 수준입니다.",
         "스스로 약속한 규율조차 지키지 못하는가?\n이 불량품.",
@@ -350,7 +341,6 @@
     let currentAnswer = 0;
     let quizInterval = null;
 
-    // --- 통계 표시 업데이트 함수 ---
     function updateStatsDisplay() {
         cycleCountSpan.textContent = cycleCount;
         stopCountSpan.textContent = stopCount;
@@ -361,6 +351,13 @@
         const seconds = timeLeft % 60;
         timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         
+        // --- 글자 색상 변경 로직 추가 ---
+        if (isWorkMode) {
+            timerDisplay.style.color = "var(--danger-color)"; // 집중 모드: 빨간색
+        } else {
+            timerDisplay.style.color = "var(--text-dark)";     // 휴식 모드: 검은색
+        }
+
         const progress = ((totalTime - timeLeft) / totalTime) * 100;
         progressFill.style.width = `${progress}%`;
     }
@@ -369,7 +366,7 @@
         if (isRunning) return;
         isRunning = true;
         statusLight.className = isWorkMode ? 'status-light active' : 'status-light break';
-        modeDisplay.textContent = isWorkMode ? 'FOCUS MODE' : 'REST MODE (BREAK)'; // 문구 변경
+        modeDisplay.textContent = isWorkMode ? 'FOCUS MODE' : 'REST MODE (BREAK)'; 
         
         timerInterval = setInterval(() => {
             if (timeLeft > 0) {
@@ -386,7 +383,6 @@
         clearInterval(timerInterval);
         statusLight.className = 'status-light';
         modeDisplay.textContent = 'SYSTEM HALTED';
-        // EMERGENCY STOP 횟수 증가
         stopCount++;
         updateStatsDisplay();
     }
@@ -396,21 +392,18 @@
         isRunning = false;
 
         if (isWorkMode) {
-            // Work -> Break
             isWorkMode = false;
             timeLeft = BREAK_TIME;
             totalTime = BREAK_TIME;
-            modeDisplay.textContent = 'REST MODE (BREAK)'; // 문구 변경
+            modeDisplay.textContent = 'REST MODE (BREAK)'; 
             statusLight.className = 'status-light break';
             
-            // Work 완료 시 사이클 횟수 증가 및 통계 업데이트
             cycleCount++;
             updateStatsDisplay();
+            updateDisplay(); // 즉시 색상 및 시간 반영
 
-            // Start break automatically
             startSystem();
         } else {
-            // Break -> Work (Trigger Quiz Check)
             triggerQuiz();
         }
     }
@@ -421,7 +414,6 @@
         insultText.textContent = "";
         quizInput.value = "";
         
-        // Generate Question
         const a = Math.floor(Math.random() * 8) + 2;
         const b = Math.floor(Math.random() * 8) + 2;
         currentAnswer = a + b;
@@ -431,7 +423,6 @@
         quizTimerDisplay.textContent = `${qTime}s`;
         quizTimerDisplay.style.color = 'var(--text-light)';
         
-        // Focus trick for reliable input
         setTimeout(() => quizInput.focus(), 100);
 
         quizInterval = setInterval(() => {
@@ -451,7 +442,6 @@
         insultText.textContent = `[ACCESS DENIED]\n${randomInsult}`;
         quizInput.disabled = true;
         
-        // Lock system for 3 seconds
         setTimeout(() => {
             quizInput.disabled = false;
             triggerQuiz();
@@ -464,7 +454,7 @@
             if (val === currentAnswer) {
                 passQuiz();
             } else {
-                failQuiz(); // Wrong answer triggers failure immediately
+                failQuiz();
             }
         }
     });
@@ -476,12 +466,11 @@
         isWorkMode = true;
         timeLeft = WORK_TIME;
         totalTime = WORK_TIME;
-        modeDisplay.textContent = 'FOCUS MODE'; // 문구 변경
+        modeDisplay.textContent = 'FOCUS MODE'; 
         updateDisplay();
         startSystem();
     }
 
-    // --- 횟수 초기화 함수 ---
     function clearStats() {
         const confirmClear = confirm("경고: 생산성 기록을 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.");
         if (confirmClear) {
@@ -492,7 +481,7 @@
     }
 
     updateDisplay();
-    updateStatsDisplay(); // 초기 통계 표시
+    updateStatsDisplay();
 </script>
 </body>
 </html>
