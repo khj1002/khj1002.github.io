@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Focus Timer</title>
+    <style>
+        /* --- 모던 디자인을 위한 새로운 색상 변수 --- */
+        :root {
+            --bg-color: #f7f9fc; /* 밝은 배경 */
+            --card-color: #ffffff; /* 흰색 카드 배경 */
+            --primary-color: #6c63ff; /* 메인 강조색 (보라색) */
+            --secondary-color: #00bcd4; /* 보조 강조색 (청록색) */
+            --success-color: #4caf50; /* 성공/시작 (녹색) */
+            --danger-color: #f44336; /* 위험/정지 (빨간색) */
+            --text-dark: #212121;
+            --text-light: #757575;
+            --font-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --shadow-medium: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            font-family: var(--font-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .container {
+            background-color: var(--card-color);
+            border-radius: 20px; /* 둥근 모서리 */
+            padding: 40px;
+            width: 400px;
+            text-align: center;
+            box-shadow: var(--shadow-medium);
+            position: relative;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        /* --- 상태 표시등 (Status Light) --- */
+        .status-light {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: var(--text-light);
+            margin: 0 auto 20px;
+            border: 1px solid #ddd;
+            transition: all 0.3s;
+        }
+
+        .status-light.active {
+            background-color: var(--success-color);
+            box-shadow: 0 0 10px var(--success-color);
+        }
+
+        .status-light.break {
+            background-color: var(--secondary-color);
+            box-shadow: 0 0 10px var(--secondary-color);
+        }
+
+        .status-light.alert {
+            background-color: var(--danger-color);
+            box-shadow: 0 0 15px var(--danger-color);
+            animation: pulse 0.8s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0.8; transform: scale(1.1); }
+        }
+
+        /* --- 타이머 및 모드 표시 --- */
+        .timer-display {
+            font-size: 6rem;
+            font-weight: 700;
+            margin: 10px 0 5px;
+            color: var(--text-dark);
+            letter-spacing: -3px;
+        }
+
+        .current-mode {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 25px;
+            color: var(--text-light);
+            text-transform: uppercase;
+        }
+
+        /* --- 진행률 표시줄 --- */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            width: 0%;
+            transition: width 1s linear;
+            border-radius: 4px;
+        }
+        
+        /* --- 제어 버튼 --- */
+        .controls {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap; /* 버튼이 많아지면 줄바꿈 */
+            gap: 10px;
+        }
+
+        .controls button {
+            border: none;
+            padding: 12px 20px;
+            font-family: var(--font-main);
+            cursor: pointer;
+            text-transform: uppercase;
+            font-weight: 600;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .controls button:active {
+            box-shadow: none;
+            transform: translateY(1px);
+        }
+
+        .controls button.start { 
+            background-color: var(--success-color); 
+            color: white; 
+        }
+        .controls button.stop { 
+            background-color: var(--danger-color); 
+            color: white; 
+        }
+        .controls button.reset-stats { 
+            background: #f1f1f1; 
+            color: var(--text-light);
+            font-size: 0.8rem;
+        }
+
+        /* --- 통계 패널 --- */
+        .stats-panel {
+            margin-top: 30px;
+            padding: 15px 0;
+            border-top: 1px solid #eeeeee;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            color: var(--text-light);
+        }
+
+        .stats-panel div {
+            line-height: 1.4;
+        }
+
+        .stats-panel .stat-value {
+            font-size: 1.8rem;
+            color: var(--primary-color);
+            font-weight: 700;
+            display: block;
+            margin-top: 5px;
+        }
+
+        /* --- 퀴즈 모달 (Quiz Modal) --- */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95); /* 반투명 흰색 오버레이 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            display: none;
+            border-radius: 20px;
+        }
+
+        .quiz-box {
+            text-align: center;
+            color: var(--text-dark);
+            width: 90%;
+            padding: 20px;
+        }
+
+        .quiz-title {
+            color: var(--danger-color);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .quiz-question {
+            font-size: 3.5rem;
+            margin: 20px 0;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .quiz-input {
+            background: #f7f7f7;
+            border: 2px solid var(--primary-color);
+            color: var(--text-dark);
+            font-size: 2rem;
+            width: 100px;
+            text-align: center;
+            padding: 10px;
+            font-family: var(--font-main);
+            outline: none;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .quiz-input:focus {
+            box-shadow: 0 0 10px var(--primary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .insult-text {
+            color: var(--danger-color);
+            margin-top: 30px;
+            font-size: 1rem;
+            font-weight: 500;
+            max-width: 90%;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+            min-height: 80px;
+            white-space: pre-line;
+        }
+        
+        #quizTimer {
+            font-weight: bold;
+            color: var(--text-light);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="statusLight" class="status-light"></div>
+    <h1>Focus Productivity Timer</h1>
+    
+    <div id="currentMode" class="current-mode">STANDBY</div>
+    
+    <div id="timerDisplay" class="timer-display">50:00</div>
+
+    <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+    </div>
+
+    <div class="controls">
+        <button onclick="startSystem()" class="start">Start Focus</button>
+        <button onclick="stopSystem()" class="stop">Emergency Stop</button>
+        <button onclick="clearStats()" class="reset-stats">통계 초기화</button>
+    </div>
+
+    <div class="stats-panel">
+        <div>
+            CYCLES COMPLETE
+            <span id="cycleCount" class="stat-value">0</span>
+        </div>
+        <div>
+            STOP VIOLATIONS
+            <span id="stopCount" class="stat-value">0</span>
+        </div>
+    </div>
+
+    <div id="quizModal" class="modal-overlay">
+        <div class="quiz-box">
+            <div class="quiz-title">!! WAKE UP !!</div>
+            <p>Prove cognitive function to resume production.</p>
+            <div id="quizQuestion" class="quiz-question"></div>
+            <input type="number" id="quizInput" class="quiz-input" autofocus autocomplete="off">
+            <p id="quizTimer" style="font-size: 1.5rem; margin-top: 10px;">15s</p>
+            <div id="insultText" class="insult-text"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // System Configuration
+    const WORK_TIME = 50 * 60;
+    const BREAK_TIME = 10 * 60;
+    const QUIZ_TIMEOUT = 15;
+
+    // State Variables
+    let timeLeft = WORK_TIME;
+    let isWorkMode = true;
+    let isRunning = false;
+    let timerInterval = null;
+    let totalTime = WORK_TIME;
+    
+    // --- 통계 변수 ---
+    let cycleCount = 0;
+    let stopCount = 0;
+
+    // DOM Elements
+    const timerDisplay = document.getElementById('timerDisplay');
+    const modeDisplay = document.getElementById('currentMode');
+    const statusLight = document.getElementById('statusLight');
+    const progressFill = document.getElementById('progressFill');
+    const quizModal = document.getElementById('quizModal');
+    const quizQuestion = document.getElementById('quizQuestion');
+    const quizInput = document.getElementById('quizInput');
+    const insultText = document.getElementById('insultText');
+    const quizTimerDisplay = document.getElementById('quizTimer');
+    // --- 통계 DOM 요소 ---
+    const cycleCountSpan = document.getElementById('cycleCount');
+    const stopCountSpan = document.getElementById('stopCount');
+
+    // Harsh Criticisms (내용은 그대로 유지)
+    const insults = [
+        "경고: 기본 연산 실패.\n당신의 두뇌 가동률은 폐기 수준입니다.",
+        "스스로 약속한 규율조차 지키지 못하는가?\n이 불량품.",
+        "생산 라인을 지연시키지 마라.\n당신의 나태함은 죄악이다.",
+        "무능력한 작업자 감지됨.\n즉시 대체 인력이 필요함.",
+        "쉬운 산수도 못하면서 무슨 성취를 바라는가?\n정신 차려라.",
+        "변명은 필요 없다.\n결과가 당신의 수준을 말해준다."
+    ];
+
+    let currentAnswer = 0;
+    let quizInterval = null;
+
+    // --- 통계 표시 업데이트 함수 ---
+    function updateStatsDisplay() {
+        cycleCountSpan.textContent = cycleCount;
+        stopCountSpan.textContent = stopCount;
+    }
+
+    function updateDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        const progress = ((totalTime - timeLeft) / totalTime) * 100;
+        progressFill.style.width = `${progress}%`;
+    }
+
+    function startSystem() {
+        if (isRunning) return;
+        isRunning = true;
+        statusLight.className = isWorkMode ? 'status-light active' : 'status-light break';
+        modeDisplay.textContent = isWorkMode ? 'FOCUS MODE' : 'REST MODE (BREAK)'; // 문구 변경
+        
+        timerInterval = setInterval(() => {
+            if (timeLeft > 0) {
+                timeLeft--;
+                updateDisplay();
+            } else {
+                switchPhase();
+            }
+        }, 1000);
+    }
+
+    function stopSystem() {
+        isRunning = false;
+        clearInterval(timerInterval);
+        statusLight.className = 'status-light';
+        modeDisplay.textContent = 'SYSTEM HALTED';
+        // EMERGENCY STOP 횟수 증가
+        stopCount++;
+        updateStatsDisplay();
+    }
+
+    function switchPhase() {
+        clearInterval(timerInterval);
+        isRunning = false;
+
+        if (isWorkMode) {
+            // Work -> Break
+            isWorkMode = false;
+            timeLeft = BREAK_TIME;
+            totalTime = BREAK_TIME;
+            modeDisplay.textContent = 'REST MODE (BREAK)'; // 문구 변경
+            statusLight.className = 'status-light break';
+            
+            // Work 완료 시 사이클 횟수 증가 및 통계 업데이트
+            cycleCount++;
+            updateStatsDisplay();
+
+            // Start break automatically
+            startSystem();
+        } else {
+            // Break -> Work (Trigger Quiz Check)
+            triggerQuiz();
+        }
+    }
+
+    function triggerQuiz() {
+        quizModal.style.display = 'flex';
+        statusLight.className = 'status-light alert';
+        insultText.textContent = "";
+        quizInput.value = "";
+        
+        // Generate Question
+        const a = Math.floor(Math.random() * 8) + 2;
+        const b = Math.floor(Math.random() * 8) + 2;
+        currentAnswer = a + b;
+        quizQuestion.textContent = `${a} + ${b} = ?`;
+
+        let qTime = QUIZ_TIMEOUT;
+        quizTimerDisplay.textContent = `${qTime}s`;
+        quizTimerDisplay.style.color = 'var(--text-light)';
+        
+        // Focus trick for reliable input
+        setTimeout(() => quizInput.focus(), 100);
+
+        quizInterval = setInterval(() => {
+            qTime--;
+            quizTimerDisplay.textContent = `${qTime}s`;
+            if(qTime < 5) quizTimerDisplay.style.color = 'var(--danger-color)';
+            
+            if (qTime <= 0) {
+                failQuiz();
+            }
+        }, 1000);
+    }
+
+    function failQuiz() {
+        clearInterval(quizInterval);
+        const randomInsult = insults[Math.floor(Math.random() * insults.length)];
+        insultText.textContent = `[ACCESS DENIED]\n${randomInsult}`;
+        quizInput.disabled = true;
+        
+        // Lock system for 3 seconds
+        setTimeout(() => {
+            quizInput.disabled = false;
+            triggerQuiz();
+        }, 3000);
+    }
+
+    quizInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            const val = parseInt(quizInput.value);
+            if (val === currentAnswer) {
+                passQuiz();
+            } else {
+                failQuiz(); // Wrong answer triggers failure immediately
+            }
+        }
+    });
+
+    function passQuiz() {
+        clearInterval(quizInterval);
+        quizModal.style.display = 'none';
+        
+        isWorkMode = true;
+        timeLeft = WORK_TIME;
+        totalTime = WORK_TIME;
+        modeDisplay.textContent = 'FOCUS MODE'; // 문구 변경
+        updateDisplay();
+        startSystem();
+    }
+
+    // --- 횟수 초기화 함수 ---
+    function clearStats() {
+        const confirmClear = confirm("경고: 생산성 기록을 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.");
+        if (confirmClear) {
+            cycleCount = 0;
+            stopCount = 0;
+            updateStatsDisplay();
+        }
+    }
+
+    updateDisplay();
+    updateStatsDisplay(); // 초기 통계 표시
+</script>
+</body>
+</html>
