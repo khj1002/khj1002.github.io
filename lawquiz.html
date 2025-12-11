@@ -214,4 +214,203 @@
         // 4. [신규] 정답 DB 패널 로직
         // ==========================================
         
-        // 정답 DB 패널 열기
+        // 정답 DB 패널 열기/닫기 토글
+        function toggleAnswerDB() {
+            const isVisible = answerDbPanelEl.style.display !== 'none';
+            if (isVisible) {
+                answerDbPanelEl.style.display = 'none';
+                toggleDbBtn.textContent = '🔑 답안 DB 보기';
+            } else {
+                renderAnswerDB(); // 열 때마다 최신 카테고리로 갱신
+                answerDbPanelEl.style.display = 'block';
+                toggleDbBtn.textContent = '❌ 답안 DB 숨기기';
+            }
+        }
+
+        // 선택된 카테고리에 맞춰 정답 테이블 렌더링
+        function renderAnswerDB() {
+            const selectedCategory = categorySelectEl.value;
+            dbCategoryNameEl.textContent = selectedCategory === '통합' ? '전체' : selectedCategory;
+            
+            let filteredDB = questionDB;
+            if (selectedCategory !== "통합") {
+                filteredDB = questionDB.filter(q => q.category === selectedCategory);
+            }
+
+            let html = `<table><thead><tr><th>ID</th><th>문제 내용</th><th>정답 키워드</th></tr></thead><tbody>`;
+
+            if (filteredDB.length === 0) {
+                html += `<tr><td colspan="3" style="text-align:center;">선택하신 카테고리에 등록된 문제가 없습니다.</td></tr>`;
+            } else {
+                filteredDB.forEach(q => {
+                    const keywordsString = q.keywords.join(' / ');
+                    html += `<tr>
+                        <td class="id-col">${q.id}</td>
+                        <td>${q.text}</td>
+                        <td class="keywords-col">${keywordsString}</td>
+                    </tr>`;
+                });
+            }
+            html += `</tbody></table>`;
+            answerDbTableEl.innerHTML = html;
+        }
+
+        // ==========================================
+        // 5. 기존 퀴즈/관리 로직
+        // ==========================================
+        
+        function getUserHistory() {
+            const history = localStorage.getItem(historyKey);
+            return history ? JSON.parse(history) : {};
+        }
+
+        function saveUserHistory(history) {
+            localStorage.setItem(historyKey, JSON.stringify(history));
+            renderAdminTable();
+        }
+
+        function changeCategory() {
+            currentCategory = categorySelectEl.value;
+            loadQuestion(); 
+            // [신규] 카테고리 변경 시 정답 DB 패널이 열려있다면 내용 갱신
+            if (answerDbPanelEl.style.display !== 'none') {
+                 renderAnswerDB(); 
+            }
+        }
+
+        function selectNextQuestion() {
+            const history = getUserHistory();
+            
+            let candidates = questionDB;
+            if (currentCategory !== "통합") {
+                candidates = questionDB.filter(q => q.category === currentCategory);
+            }
+
+            if (candidates.length === 0) return null; 
+
+            const rankedQuestions = candidates.map(q => {
+                const record = history[q.id];
+                if (!record) {
+                    return { ...q, priority: 9999 };
+                }
+                const totalAttempts = record.correct + record.incorrect;
+                const failRate = totalAttempts === 0 ? 0 : (record.incorrect / totalAttempts);
+                return { ...q, priority: failRate };
+            });
+
+            // 정렬 (오답률이 높은 순서 -> ID순)
+            rankedQuestions.sort((a, b) => {
+                if (b.priority !== a.priority) return b.priority - a.priority;
+                return a.id - b.id;
+            });
+
+            return rankedQuestions[0];
+        }
+
+        function loadQuestion() {
+            currentQuestion = selectNextQuestion();
+
+            // UI 초기화
+            resultMsgEl.textContent = "";
+            submitBtn.style.display = "inline-block";
+            nextBtn.style.display = "none";
+            answerInputEl.disabled = false;
+            answerInputEl.value = "";
+            answerInputEl.focus();
+
+            if (!currentQuestion) {
+                questionTextEl.textContent = "선택하신 과목에 등록된 문제가 없습니다. CSV 파일에 문제를 추가해주세요.";
+                categoryBadgeEl.style.display = 'none';
+                submitBtn.style.display = 'none';
+                answerInputEl.disabled = true;
+                return;
+            }
+
+            // 문제 표시
+            categoryBadgeEl.style.display = 'inline-block';
+            categoryBadgeEl.textContent = currentQuestion.category;
+            questionTextEl.textContent = currentQuestion.text;
+        }
+
+        function checkAnswer(userAnswer, keywords) {
+            if (!userAnswer || keywords.length === 0) return false;
+            const normalizedAnswer = userAnswer.toLowerCase().replace(/\s+/g, '');
+            return keywords.every(keyword => {
+                const normalizedKeyword = keyword.toLowerCase().replace(/\s+/g, '');
+                return normalizedAnswer.includes(normalizedKeyword);
+            });
+        }
+
+        document.getElementById('quiz-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentQuestion) return;
+
+            const userAnswer = answerInputEl.value;
+            if (!userAnswer.trim()) {
+                alert("키워드를 입력해주세요.");
+                return;
+            }
+
+            const isCorrect = checkAnswer(userAnswer, currentQuestion.keywords);
+            
+            // 기록 저장
+            const history = getUserHistory();
+            if (!history[currentQuestion.id]) history[currentQuestion.id] = { correct: 0, incorrect: 0 };
+            
+            const keywordsString = currentQuestion.keywords.join(' / '); // 정답 표시용
+
+            if (isCorrect) {
+                history[currentQuestion.id].correct++;
+                resultMsgEl.innerHTML = `<span class="correct">⭕ 정답입니다! (키워드: ${keywordsString})</span>`;
+                answerInputEl.disabled = true;
+                submitBtn.style.display = "none";
+                nextBtn.style.display = "block";
+                nextBtn.focus();
+            } else {
+                history[currentQuestion.id].incorrect++;
+                resultMsgEl.innerHTML = `<span class="incorrect">❌ 오답입니다. 다시 생각해보세요.</span>`;
+                answerInputEl.focus();
+            }
+            saveUserHistory(history);
+        });
+
+        nextBtn.addEventListener('click', loadQuestion);
+
+        function resetData() {
+            if(confirm("모든 학습 기록을 삭제하시겠습니까? (로컬 파일의 문제는 삭제되지 않습니다)")) {
+                localStorage.removeItem(historyKey);
+                loadQuestionData(); 
+            }
+        }
+
+        function renderAdminTable() {
+            const history = getUserHistory();
+            const tableContainer = document.getElementById('debug-table');
+            
+            let html = `<table><thead><tr><th>과목</th><th>ID</th><th>문제(요약)</th><th>정답/오답</th><th>오답률</th></tr></thead><tbody>`;
+            
+            questionDB.forEach(q => {
+                const h = history[q.id] || { correct: 0, incorrect: 0 };
+                const total = h.correct + h.incorrect;
+                const rate = total === 0 ? 0 : (h.incorrect / total) * 100;
+                
+                html += `<tr>
+                    <td>${q.category}</td>
+                    <td>${q.id}</td>
+                    <td style="text-align:left;">${q.text.substring(0, 15)}...</td>
+                    <td>${h.correct}/${h.incorrect}</td>
+                    <td>${total === 0 ? "-" : rate.toFixed(0) + "%"}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            tableContainer.innerHTML = html;
+        }
+
+        // ==========================================
+        // 6. 실행 시작
+        // ==========================================
+        loadQuestionData();
+
+    </script>
+</body>
+</html>
