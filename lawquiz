@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>판례 키워드 암기장 (Google Sheets 연동)</title>
+    <style>
+        /* (스타일은 이전과 동일합니다.) */
+        body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background-color: #f0f2f5; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .container { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); width: 100%; max-width: 600px; text-align: center; border-top: 5px solid #2c3e50; }
+        
+        h1 { margin-bottom: 10px; color: #2c3e50; font-size: 1.6rem; }
+        
+        /* 카테고리 선택 영역 */
+        .filter-section { margin-bottom: 20px; }
+        select { padding: 8px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; outline: none; cursor: pointer; }
+
+        /* 문제 영역 */
+        .category-badge { display: inline-block; background: #34495e; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin-bottom: 10px; }
+        .question-box { background: #ecf0f1; padding: 25px; border-radius: 8px; margin-bottom: 20px; font-size: 1.1rem; font-weight: bold; color: #2c3e50; line-height: 1.6; word-break: keep-all;}
+        
+        input[type="text"] { width: 80%; padding: 12px; font-size: 1rem; border: 2px solid #ddd; border-radius: 5px; outline: none; transition: 0.3s; }
+        input[type="text"]:focus { border-color: #3498db; }
+        
+        button { padding: 12px 25px; font-size: 1rem; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; transition: 0.2s; font-weight: bold; }
+        .btn-submit { background-color: #2980b9; }
+        .btn-submit:hover { background-color: #1c5980; }
+        .btn-next { background-color: #27ae60; display: none; margin: 15px auto; }
+        .btn-next:hover { background-color: #219150; }
+        
+        #result-message { margin-top: 15px; font-weight: bold; min-height: 24px; font-size: 1.05rem; }
+        .correct { color: #27ae60; }
+        .incorrect { color: #c0392b; }
+
+        /* 로딩 메시지 */
+        #loading-message { font-size: 1.2rem; color: #e67e22; margin-top: 50px; }
+
+        /* 관리자 패널 */
+        .admin-panel { margin-top: 40px; width: 100%; max-width: 600px; border-top: 1px solid #ccc; padding-top: 15px; font-size: 0.85rem; color: #666; }
+        .admin-panel table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .admin-panel th { background: #f8f9fa; }
+        .admin-panel th, .admin-panel td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        .btn-reset { background-color: #7f8c8d; font-size: 0.8rem; padding: 6px 12px; margin-bottom: 10px;}
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>⚖️ 판례 키워드 암기</h1>
+        
+        <div class="filter-section">
+            <label for="category-select">학습 과목 선택: </label>
+            <select id="category-select" onchange="changeCategory()">
+                <option value="통합">🧩 통합 카테고리 (전체)</option>
+                <option value="민사법">민사법</option>
+                <option value="형사법">형사법</option>
+                <option value="공법">공법(헌법/행정)</option>
+                <option value="조세법">조세법</option>
+            </select>
+        </div>
+
+        <div id="quiz-area" style="display:none;"> <div><span id="category-badge" class="category-badge">과목</span></div>
+            <div class="question-box" id="question-text"></div>
+
+            <form id="quiz-form">
+                <input type="text" id="answer-input" placeholder="핵심 키워드를 입력하세요" autocomplete="off">
+                <br>
+                <button type="submit" class="btn-submit" id="submit-btn">정답 확인</button>
+            </form>
+
+            <div id="result-message"></div>
+            <button id="next-btn" class="btn-next">다음 판례 보기 ➡️</button>
+        </div>
+        
+        <div id="loading-message">
+            문제 데이터를 구글 시트에서 불러오는 중입니다...
+            <p style="font-size: 0.8rem; margin-top: 10px;">(인터넷 연결이 필요하며, 시트 데이터가 없으면 오류가 발생합니다.)</p>
+        </div>
+    </div>
+
+    <div class="admin-panel">
+        <h3>📊 학습 현황판</h3>
+        <button class="btn-reset" onclick="resetData()">학습 기록 초기화</button>
+        <div id="debug-table"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. Google Sheets CSV URL 설정 (새 URL로 업데이트 완료)
+        // ==========================================
+        // gid=0 (첫 번째 시트)와 single=true가 명시되어 안정성이 높습니다.
+        const CSV_URL = "
