@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>판례 키워드 암기장 (Google Sheets 연동)</title>
+    <title>판례 키워드 암기장 (로컬 파일 연동)</title>
     <style>
         /* (스타일은 이전과 동일합니다.) */
         body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background-color: #f0f2f5; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
@@ -11,11 +11,9 @@
         
         h1 { margin-bottom: 10px; color: #2c3e50; font-size: 1.6rem; }
         
-        /* 카테고리 선택 영역 */
         .filter-section { margin-bottom: 20px; }
         select { padding: 8px; font-size: 1rem; border-radius: 5px; border: 1px solid #ccc; outline: none; cursor: pointer; }
 
-        /* 문제 영역 */
         .category-badge { display: inline-block; background: #34495e; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin-bottom: 10px; }
         .question-box { background: #ecf0f1; padding: 25px; border-radius: 8px; margin-bottom: 20px; font-size: 1.1rem; font-weight: bold; color: #2c3e50; line-height: 1.6; word-break: keep-all;}
         
@@ -59,7 +57,8 @@
             </select>
         </div>
 
-        <div id="quiz-area" style="display:none;"> <div><span id="category-badge" class="category-badge">과목</span></div>
+        <div id="quiz-area" style="display:none;">
+            <div><span id="category-badge" class="category-badge">과목</span></div>
             <div class="question-box" id="question-text"></div>
 
             <form id="quiz-form">
@@ -73,8 +72,7 @@
         </div>
         
         <div id="loading-message">
-            문제 데이터를 구글 시트에서 불러오는 중입니다...
-            <p style="font-size: 0.8rem; margin-top: 10px;">(인터넷 연결이 필요하며, 시트 데이터가 없으면 오류가 발생합니다.)</p>
+            문제 데이터를 로컬 파일에서 불러오는 중입니다...
         </div>
     </div>
 
@@ -86,7 +84,263 @@
 
     <script>
         // ==========================================
-        // 1. Google Sheets CSV URL 설정 (새 URL로 업데이트 완료)
+        // 1. 로컬 CSV 파일 이름 설정
         // ==========================================
-        // gid=0 (첫 번째 시트)와 single=true가 명시되어 안정성이 높습니다.
-        const CSV_URL = "
+        const LOCAL_CSV_FILE = "questions.csv"; // 1단계에서 저장한 파일 이름
+
+        // ==========================================
+        // 2. 시스템 변수 및 UI 요소 정의 (동일)
+        // ==========================================
+        let questionDB = [];
+        let currentQuestion = null;
+        let currentCategory = "통합"; 
+        const historyKey = "lawQuizHistory_v1";
+
+        const quizAreaEl = document.getElementById('quiz-area');
+        const questionTextEl = document.getElementById('question-text');
+        const categoryBadgeEl = document.getElementById('category-badge');
+        const answerInputEl = document.getElementById('answer-input');
+        const resultMsgEl = document.getElementById('result-message');
+        const submitBtn = document.getElementById('submit-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const categorySelectEl = document.getElementById('category-select');
+        const loadingMessageEl = document.getElementById('loading-message');
+
+
+        // ==========================================
+        // 3. CSV 데이터 로드 및 파싱 로직 (로컬 파일용으로 수정됨)
+        // ==========================================
+
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== '' && line.replace(/\r/g, '') !== '');
+                
+            if (lines.length <= 1) return [];
+            
+            const data = [];
+            let startIndex = 0;
+            if (lines[0].toLowerCase().startsWith('id')) {
+                startIndex = 1; 
+            } else {
+                startIndex = 0; 
+            }
+            
+            for (let i = startIndex; i < lines.length; i++) {
+                // 데이터를 쉼표(,)로 분리 (구글 시트에서 다운받은 CSV는 쉼표로 분리되어야 함)
+                const values = lines[i].split(',');
+
+                if (values.length < 4) continue;
+                
+                const row = {};
+                try {
+                    row.id = parseInt(values[0].trim());
+                    row.category = values[1].trim();
+                    row.text = values[2].trim().replace(/^"|"$/g, ''); 
+                    
+                    row.keywords = values[3] 
+                                    ? values[3].split(',').map(k => k.trim().replace(/^"|"$/g, '')) 
+                                    : [];
+                } catch (e) {
+                    console.error("CSV 파싱 중 오류 발생:", e, "라인:", lines[i]);
+                    continue; 
+                }
+                
+                if (!isNaN(row.id) && row.id > 0) {
+                    data.push(row);
+                }
+            }
+            return data;
+        }
+
+        // 로컬 파일을 비동기로 불러오는 함수 (XMLHttpRequest 사용)
+        function loadQuestionData() {
+            loadingMessageEl.textContent = `문제 데이터를 ${LOCAL_CSV_FILE} 에서 불러오는 중입니다...`;
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", LOCAL_CSV_FILE, true); // 동기화 방지를 위해 true
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const csvText = xhr.responseText;
+                    questionDB = parseCSV(csvText);
+
+                    if (questionDB.length === 0) {
+                        loadingMessageEl.textContent = `⚠️ 문제 데이터를 불러오는 데 실패했거나 파일(${LOCAL_CSV_FILE})에 유효한 문제가 없습니다.`;
+                        return;
+                    }
+
+                    // 데이터 로드 성공
+                    loadingMessageEl.style.display = 'none';
+                    quizAreaEl.style.display = 'block';
+                    loadQuestion();
+                    renderAdminTable();
+
+                } else {
+                    loadingMessageEl.innerHTML = `❌ 파일 로드 오류: ${LOCAL_CSV_FILE} 파일을 찾을 수 없거나 접근할 수 없습니다. 파일을 GitHub 리포지토리에 올바르게 업로드했는지 확인해주세요.`;
+                }
+            };
+            
+            xhr.onerror = function() {
+                loadingMessageEl.innerHTML = `❌ 네트워크 오류: 파일을 불러오는 중 알 수 없는 오류가 발생했습니다.`;
+            };
+
+            xhr.send(null);
+        }
+
+
+        // ==========================================
+        // 4. 나머지 퀴즈/관리 로직 (이전과 동일)
+        // ==========================================
+        
+        function getUserHistory() {
+            const history = localStorage.getItem(historyKey);
+            return history ? JSON.parse(history) : {};
+        }
+
+        function saveUserHistory(history) {
+            localStorage.setItem(historyKey, JSON.stringify(history));
+            renderAdminTable();
+        }
+
+        function changeCategory() {
+            currentCategory = categorySelectEl.value;
+            loadQuestion(); 
+        }
+
+        function selectNextQuestion() {
+            const history = getUserHistory();
+            
+            let candidates = questionDB;
+            if (currentCategory !== "통합") {
+                candidates = questionDB.filter(q => q.category === currentCategory);
+            }
+
+            if (candidates.length === 0) return null; 
+
+            const rankedQuestions = candidates.map(q => {
+                const record = history[q.id];
+                if (!record) {
+                    return { ...q, priority: 9999 };
+                }
+                const totalAttempts = record.correct + record.incorrect;
+                const failRate = totalAttempts === 0 ? 0 : (record.incorrect / totalAttempts);
+                return { ...q, priority: failRate };
+            });
+
+            // 정렬 (오답률이 높은 순서 -> ID순)
+            rankedQuestions.sort((a, b) => {
+                if (b.priority !== a.priority) return b.priority - a.priority;
+                return a.id - b.id;
+            });
+
+            return rankedQuestions[0];
+        }
+
+        function loadQuestion() {
+            currentQuestion = selectNextQuestion();
+
+            // UI 초기화
+            resultMsgEl.textContent = "";
+            submitBtn.style.display = "inline-block";
+            nextBtn.style.display = "none";
+            answerInputEl.disabled = false;
+            answerInputEl.value = "";
+            answerInputEl.focus();
+
+            if (!currentQuestion) {
+                questionTextEl.textContent = "선택하신 과목에 등록된 문제가 없습니다. CSV 파일에 문제를 추가해주세요.";
+                categoryBadgeEl.style.display = 'none';
+                submitBtn.style.display = 'none';
+                answerInputEl.disabled = true;
+                return;
+            }
+
+            // 문제 표시
+            categoryBadgeEl.style.display = 'inline-block';
+            categoryBadgeEl.textContent = currentQuestion.category;
+            questionTextEl.textContent = currentQuestion.text;
+        }
+
+        function checkAnswer(userAnswer, keywords) {
+            if (!userAnswer || keywords.length === 0) return false;
+            const normalizedAnswer = userAnswer.toLowerCase().replace(/\s+/g, '');
+            return keywords.every(keyword => {
+                const normalizedKeyword = keyword.toLowerCase().replace(/\s+/g, '');
+                return normalizedAnswer.includes(normalizedKeyword);
+            });
+        }
+
+        document.getElementById('quiz-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentQuestion) return;
+
+            const userAnswer = answerInputEl.value;
+            if (!userAnswer.trim()) {
+                alert("키워드를 입력해주세요.");
+                return;
+            }
+
+            const isCorrect = checkAnswer(userAnswer, currentQuestion.keywords);
+            
+            // 기록 저장
+            const history = getUserHistory();
+            if (!history[currentQuestion.id]) history[currentQuestion.id] = { correct: 0, incorrect: 0 };
+            
+            const keywordsString = currentQuestion.keywords.join(' / '); // 정답 표시용
+
+            if (isCorrect) {
+                history[currentQuestion.id].correct++;
+                resultMsgEl.innerHTML = `<span class="correct">⭕ 정답입니다! (키워드: ${keywordsString})</span>`;
+                answerInputEl.disabled = true;
+                submitBtn.style.display = "none";
+                nextBtn.style.display = "block";
+                nextBtn.focus();
+            } else {
+                history[currentQuestion.id].incorrect++;
+                resultMsgEl.innerHTML = `<span class="incorrect">❌ 오답입니다. 다시 생각해보세요.</span>`;
+                answerInputEl.focus();
+            }
+            saveUserHistory(history);
+        });
+
+        nextBtn.addEventListener('click', loadQuestion);
+
+        function resetData() {
+            if(confirm("모든 학습 기록을 삭제하시겠습니까? (로컬 파일의 문제는 삭제되지 않습니다)")) {
+                localStorage.removeItem(historyKey);
+                loadQuestionData(); 
+            }
+        }
+
+        function renderAdminTable() {
+            const history = getUserHistory();
+            const tableContainer = document.getElementById('debug-table');
+            
+            let html = `<table><thead><tr><th>과목</th><th>ID</th><th>문제(요약)</th><th>정답/오답</th><th>오답률</th></tr></thead><tbody>`;
+            
+            questionDB.forEach(q => {
+                const h = history[q.id] || { correct: 0, incorrect: 0 };
+                const total = h.correct + h.incorrect;
+                const rate = total === 0 ? 0 : (h.incorrect / total) * 100;
+                
+                html += `<tr>
+                    <td>${q.category}</td>
+                    <td>${q.id}</td>
+                    <td style="text-align:left;">${q.text.substring(0, 15)}...</td>
+                    <td>${h.correct}/${h.incorrect}</td>
+                    <td>${total === 0 ? "-" : rate.toFixed(0) + "%"}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            tableContainer.innerHTML = html;
+        }
+
+        // ==========================================
+        // 5. 실행 시작
+        // ==========================================
+        loadQuestionData();
+
+    </script>
+</body>
+</html>
