@@ -25,6 +25,8 @@
         .btn-submit:hover { background-color: #1c5980; }
         .btn-next { background-color: #27ae60; display: none; margin: 15px auto; }
         .btn-next:hover { background-color: #219150; }
+        .btn-db-toggle { background-color: #e67e22; margin-bottom: 20px; } /* 정답 DB 버튼 스타일 */
+        .btn-db-toggle:hover { background-color: #b8651c; }
         
         #result-message { margin-top: 15px; font-weight: bold; min-height: 24px; font-size: 1.05rem; }
         .correct { color: #27ae60; }
@@ -33,11 +35,14 @@
         /* 로딩 메시지 */
         #loading-message { font-size: 1.2rem; color: #e67e22; margin-top: 50px; }
 
-        /* 관리자 패널 */
-        .admin-panel { margin-top: 40px; width: 100%; max-width: 600px; border-top: 1px solid #ccc; padding-top: 15px; font-size: 0.85rem; color: #666; }
-        .admin-panel table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .admin-panel th { background: #f8f9fa; }
-        .admin-panel th, .admin-panel td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        /* 관리자 패널 및 정답 DB 패널 */
+        .panel { margin-top: 40px; width: 100%; max-width: 600px; border-top: 1px solid #ccc; padding-top: 15px; font-size: 0.85rem; color: #666; }
+        .panel h3 { color: #2c3e50; }
+        .panel table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .panel th { background: #f8f9fa; }
+        .panel th, .panel td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+        .panel td.id-col { width: 5%; text-align: center; }
+        .panel td.keywords-col { color: #c0392b; font-weight: bold; width: 25%; }
         .btn-reset { background-color: #7f8c8d; font-size: 0.8rem; padding: 6px 12px; margin-bottom: 10px;}
     </style>
 </head>
@@ -45,6 +50,8 @@
 
     <div class="container">
         <h1>⚖️ 판례 키워드 암기</h1>
+        
+        <button id="toggle-db-btn" class="btn-db-toggle" onclick="toggleAnswerDB()">🔑 답안 DB 보기</button>
         
         <div class="filter-section">
             <label for="category-select">학습 과목 선택: </label>
@@ -75,8 +82,13 @@
             문제 데이터를 로컬 파일에서 불러오는 중입니다...
         </div>
     </div>
+    
+    <div id="answer-db-panel" class="panel" style="display:none;">
+        <h3>📋 전체 문제 & 정답 DB (<span id="db-category-name">통합</span>)</h3>
+        <div id="answer-db-table"></div>
+    </div>
 
-    <div class="admin-panel">
+    <div id="admin-panel" class="panel">
         <h3>📊 학습 현황판</h3>
         <button class="btn-reset" onclick="resetData()">학습 기록 초기화</button>
         <div id="debug-table"></div>
@@ -86,10 +98,10 @@
         // ==========================================
         // 1. 로컬 CSV 파일 이름 설정
         // ==========================================
-        const LOCAL_CSV_FILE = "questions.csv"; // 1단계에서 저장한 파일 이름
+        const LOCAL_CSV_FILE = "questions.csv"; 
 
         // ==========================================
-        // 2. 시스템 변수 및 UI 요소 정의 (동일)
+        // 2. 시스템 변수 및 UI 요소 정의
         // ==========================================
         let questionDB = [];
         let currentQuestion = null;
@@ -98,6 +110,10 @@
 
         const quizAreaEl = document.getElementById('quiz-area');
         const questionTextEl = document.getElementById('question-text');
+        const answerDbPanelEl = document.getElementById('answer-db-panel'); // [신규]
+        const answerDbTableEl = document.getElementById('answer-db-table'); // [신규]
+        const dbCategoryNameEl = document.getElementById('db-category-name'); // [신규]
+        const toggleDbBtn = document.getElementById('toggle-db-btn'); // [신규]
         const categoryBadgeEl = document.getElementById('category-badge');
         const answerInputEl = document.getElementById('answer-input');
         const resultMsgEl = document.getElementById('result-message');
@@ -108,7 +124,7 @@
 
 
         // ==========================================
-        // 3. CSV 데이터 로드 및 파싱 로직 (로컬 파일용으로 수정됨)
+        // 3. CSV 데이터 로드 및 파싱 로직 (동일)
         // ==========================================
 
         function parseCSV(csvText) {
@@ -127,7 +143,7 @@
             }
             
             for (let i = startIndex; i < lines.length; i++) {
-                // 데이터를 쉼표(,)로 분리 (구글 시트에서 다운받은 CSV는 쉼표로 분리되어야 함)
+                // 데이터를 쉼표(,)로 분리
                 const values = lines[i].split(',');
 
                 if (values.length < 4) continue;
@@ -136,6 +152,7 @@
                 try {
                     row.id = parseInt(values[0].trim());
                     row.category = values[1].trim();
+                    // CSV에서 텍스트가 큰따옴표로 감싸여 있을 수 있으므로 제거
                     row.text = values[2].trim().replace(/^"|"$/g, ''); 
                     
                     row.keywords = values[3] 
@@ -158,7 +175,7 @@
             loadingMessageEl.textContent = `문제 데이터를 ${LOCAL_CSV_FILE} 에서 불러오는 중입니다...`;
             
             const xhr = new XMLHttpRequest();
-            xhr.open("GET", LOCAL_CSV_FILE, true); // 동기화 방지를 위해 true
+            xhr.open("GET", LOCAL_CSV_FILE, true);
             
             xhr.onload = function() {
                 if (xhr.status === 200) {
@@ -175,14 +192,18 @@
                     quizAreaEl.style.display = 'block';
                     loadQuestion();
                     renderAdminTable();
+                    renderAnswerDB(); // [신규] 데이터 로드 후 정답 DB도 초기 렌더링
+                    toggleDbBtn.disabled = false;
 
                 } else {
-                    loadingMessageEl.innerHTML = `❌ 파일 로드 오류: ${LOCAL_CSV_FILE} 파일을 찾을 수 없거나 접근할 수 없습니다. 파일을 GitHub 리포지토리에 올바르게 업로드했는지 확인해주세요.`;
+                    loadingMessageEl.innerHTML = `❌ 파일 로드 오류: ${LOCAL_CSV_FILE} 파일을 찾을 수 없거나 접근할 수 없습니다.`;
+                    toggleDbBtn.disabled = true;
                 }
             };
             
             xhr.onerror = function() {
                 loadingMessageEl.innerHTML = `❌ 네트워크 오류: 파일을 불러오는 중 알 수 없는 오류가 발생했습니다.`;
+                toggleDbBtn.disabled = true;
             };
 
             xhr.send(null);
@@ -190,157 +211,7 @@
 
 
         // ==========================================
-        // 4. 나머지 퀴즈/관리 로직 (이전과 동일)
+        // 4. [신규] 정답 DB 패널 로직
         // ==========================================
         
-        function getUserHistory() {
-            const history = localStorage.getItem(historyKey);
-            return history ? JSON.parse(history) : {};
-        }
-
-        function saveUserHistory(history) {
-            localStorage.setItem(historyKey, JSON.stringify(history));
-            renderAdminTable();
-        }
-
-        function changeCategory() {
-            currentCategory = categorySelectEl.value;
-            loadQuestion(); 
-        }
-
-        function selectNextQuestion() {
-            const history = getUserHistory();
-            
-            let candidates = questionDB;
-            if (currentCategory !== "통합") {
-                candidates = questionDB.filter(q => q.category === currentCategory);
-            }
-
-            if (candidates.length === 0) return null; 
-
-            const rankedQuestions = candidates.map(q => {
-                const record = history[q.id];
-                if (!record) {
-                    return { ...q, priority: 9999 };
-                }
-                const totalAttempts = record.correct + record.incorrect;
-                const failRate = totalAttempts === 0 ? 0 : (record.incorrect / totalAttempts);
-                return { ...q, priority: failRate };
-            });
-
-            // 정렬 (오답률이 높은 순서 -> ID순)
-            rankedQuestions.sort((a, b) => {
-                if (b.priority !== a.priority) return b.priority - a.priority;
-                return a.id - b.id;
-            });
-
-            return rankedQuestions[0];
-        }
-
-        function loadQuestion() {
-            currentQuestion = selectNextQuestion();
-
-            // UI 초기화
-            resultMsgEl.textContent = "";
-            submitBtn.style.display = "inline-block";
-            nextBtn.style.display = "none";
-            answerInputEl.disabled = false;
-            answerInputEl.value = "";
-            answerInputEl.focus();
-
-            if (!currentQuestion) {
-                questionTextEl.textContent = "선택하신 과목에 등록된 문제가 없습니다. CSV 파일에 문제를 추가해주세요.";
-                categoryBadgeEl.style.display = 'none';
-                submitBtn.style.display = 'none';
-                answerInputEl.disabled = true;
-                return;
-            }
-
-            // 문제 표시
-            categoryBadgeEl.style.display = 'inline-block';
-            categoryBadgeEl.textContent = currentQuestion.category;
-            questionTextEl.textContent = currentQuestion.text;
-        }
-
-        function checkAnswer(userAnswer, keywords) {
-            if (!userAnswer || keywords.length === 0) return false;
-            const normalizedAnswer = userAnswer.toLowerCase().replace(/\s+/g, '');
-            return keywords.every(keyword => {
-                const normalizedKeyword = keyword.toLowerCase().replace(/\s+/g, '');
-                return normalizedAnswer.includes(normalizedKeyword);
-            });
-        }
-
-        document.getElementById('quiz-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            if (!currentQuestion) return;
-
-            const userAnswer = answerInputEl.value;
-            if (!userAnswer.trim()) {
-                alert("키워드를 입력해주세요.");
-                return;
-            }
-
-            const isCorrect = checkAnswer(userAnswer, currentQuestion.keywords);
-            
-            // 기록 저장
-            const history = getUserHistory();
-            if (!history[currentQuestion.id]) history[currentQuestion.id] = { correct: 0, incorrect: 0 };
-            
-            const keywordsString = currentQuestion.keywords.join(' / '); // 정답 표시용
-
-            if (isCorrect) {
-                history[currentQuestion.id].correct++;
-                resultMsgEl.innerHTML = `<span class="correct">⭕ 정답입니다! (키워드: ${keywordsString})</span>`;
-                answerInputEl.disabled = true;
-                submitBtn.style.display = "none";
-                nextBtn.style.display = "block";
-                nextBtn.focus();
-            } else {
-                history[currentQuestion.id].incorrect++;
-                resultMsgEl.innerHTML = `<span class="incorrect">❌ 오답입니다. 다시 생각해보세요.</span>`;
-                answerInputEl.focus();
-            }
-            saveUserHistory(history);
-        });
-
-        nextBtn.addEventListener('click', loadQuestion);
-
-        function resetData() {
-            if(confirm("모든 학습 기록을 삭제하시겠습니까? (로컬 파일의 문제는 삭제되지 않습니다)")) {
-                localStorage.removeItem(historyKey);
-                loadQuestionData(); 
-            }
-        }
-
-        function renderAdminTable() {
-            const history = getUserHistory();
-            const tableContainer = document.getElementById('debug-table');
-            
-            let html = `<table><thead><tr><th>과목</th><th>ID</th><th>문제(요약)</th><th>정답/오답</th><th>오답률</th></tr></thead><tbody>`;
-            
-            questionDB.forEach(q => {
-                const h = history[q.id] || { correct: 0, incorrect: 0 };
-                const total = h.correct + h.incorrect;
-                const rate = total === 0 ? 0 : (h.incorrect / total) * 100;
-                
-                html += `<tr>
-                    <td>${q.category}</td>
-                    <td>${q.id}</td>
-                    <td style="text-align:left;">${q.text.substring(0, 15)}...</td>
-                    <td>${h.correct}/${h.incorrect}</td>
-                    <td>${total === 0 ? "-" : rate.toFixed(0) + "%"}</td>
-                </tr>`;
-            });
-            html += `</tbody></table>`;
-            tableContainer.innerHTML = html;
-        }
-
-        // ==========================================
-        // 5. 실행 시작
-        // ==========================================
-        loadQuestionData();
-
-    </script>
-</body>
-</html>
+        // 정답 DB 패널 열기
