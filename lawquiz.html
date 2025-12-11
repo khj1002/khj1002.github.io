@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>판례 키워드 암기장 (로컬 파일 연동)</title>
     <style>
-        /* (스타일은 이전과 동일합니다.) */
         body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background-color: #f0f2f5; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
         .container { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); width: 100%; max-width: 600px; text-align: center; border-top: 5px solid #2c3e50; }
         
@@ -25,11 +24,11 @@
         .btn-submit:hover { background-color: #1c5980; }
         .btn-next { background-color: #27ae60; display: none; margin: 15px auto; }
         .btn-next:hover { background-color: #219150; }
-        .btn-db-toggle { background-color: #e67e22; margin-bottom: 20px; } /* 정답 DB 버튼 스타일 */
+        .btn-db-toggle { background-color: #e67e22; margin-bottom: 20px; }
         .btn-db-toggle:hover { background-color: #b8651c; }
         
         #result-message { margin-top: 15px; font-weight: bold; min-height: 24px; font-size: 1.05rem; }
-        .explanation { margin-top: 10px; padding: 10px; border-radius: 5px; background: #f8f9fa; color: #34495e; font-weight: normal; font-size: 0.95rem; text-align: left; border-left: 3px solid #e67e22;} /* 해설 스타일 */
+        .explanation { margin-top: 10px; padding: 10px; border-radius: 5px; background: #f8f9fa; color: #34495e; font-weight: normal; font-size: 0.95rem; text-align: left; border-left: 3px solid #e67e22;}
         .correct { color: #27ae60; }
         .incorrect { color: #c0392b; }
 
@@ -43,8 +42,8 @@
         .panel th { background: #f8f9fa; }
         .panel th, .panel td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
         .panel td.id-col { width: 5%; text-align: center; }
-        .panel td.keywords-col { color: #c0392b; font-weight: bold; width: 20%; } /* 너비 조정 */
-        .panel td.explanation-col { font-size: 0.8rem; width: 30%; } /* [수정] 해설 열 너비 조정 */
+        .panel td.keywords-col { color: #c0392b; font-weight: bold; width: 20%; }
+        .panel td.explanation-col { font-size: 0.8rem; width: 30%; }
         .panel th.narrow-col { width: 10%; }
         .btn-reset { background-color: #7f8c8d; font-size: 0.8rem; padding: 6px 12px; margin-bottom: 10px;}
     </style>
@@ -139,6 +138,7 @@
             
             const data = [];
             let startIndex = 0;
+            // 헤더 검사: 첫 줄이 'id'로 시작하면 헤더로 간주하고 건너뜁니다.
             if (lines[0].toLowerCase().startsWith('id')) {
                 startIndex = 1; 
             } else {
@@ -149,8 +149,8 @@
                 // 데이터를 쉼표(,)로 분리
                 const values = lines[i].split(',');
 
-                // 최소 5개 항목이 있는지 확인 (id, category, text, keywords, explanation)
-                if (values.length < 5) continue;
+                // 최소 4개 항목이 있는지 확인 (id, category, text, keywords)
+                if (values.length < 4) continue;
                 
                 const row = {};
                 try {
@@ -162,9 +162,7 @@
                                     ? values[3].split(',').map(k => k.trim().replace(/^"|"$/g, '')) 
                                     : [];
                     
-                    // 5번째 열 (Explanation) 파싱
-                    // values[4]를 사용. 다음 값이 있으면 합치거나 복잡하게 처리할 수 있으나,
-                    // 간단히 5번째부터 끝까지의 값을 하나의 해설로 취급 (CSV 파싱의 쉼표 문제 대비)
+                    // 5번째 열부터 끝까지를 Explanation으로 처리 (CSV 내부에 쉼표가 있을 경우 대비)
                     const explanationPart = values.slice(4).join(','); 
                     row.explanation = explanationPart.trim().replace(/^"|"$/g, '');
                     
@@ -193,7 +191,7 @@
                     questionDB = parseCSV(csvText);
 
                     if (questionDB.length === 0) {
-                        loadingMessageEl.textContent = `⚠️ 문제 데이터를 불러오는 데 실패했거나 파일(${LOCAL_CSV_FILE})에 유효한 문제가 없습니다. (CSV 형식이 올바른지 확인해주세요.)`;
+                        loadingMessageEl.innerHTML = `⚠️ 문제 데이터를 불러오는 데 실패했거나 파일(${LOCAL_CSV_FILE})에 유효한 문제가 없습니다.<br>(CSV 파일이 **UTF-8 (BOM 없음)**으로 저장되었는지, **5개의 쉼표로 구분된 열**이 있는지 확인해주세요.)`;
                         return;
                     }
 
@@ -206,7 +204,7 @@
                     toggleDbBtn.disabled = false;
 
                 } else {
-                    loadingMessageEl.innerHTML = `❌ 파일 로드 오류: ${LOCAL_CSV_FILE} 파일을 찾을 수 없거나 접근할 수 없습니다.`;
+                    loadingMessageEl.innerHTML = `❌ 파일 로드 오류: ${LOCAL_CSV_FILE} 파일을 찾을 수 없거나 접근할 수 없습니다. (HTTP 상태 코드: ${xhr.status})`;
                     toggleDbBtn.disabled = true;
                 }
             };
@@ -221,7 +219,7 @@
 
 
         // ==========================================
-        // 4. 정답 DB 패널 로직 (해설 필드 표시 문제 해결)
+        // 4. 정답 DB 패널 로직
         // ==========================================
         
         function toggleAnswerDB() {
@@ -236,7 +234,6 @@
             }
         }
 
-        // 선택된 카테고리에 맞춰 정답 테이블 렌더링
         function renderAnswerDB() {
             const selectedCategory = categorySelectEl.value;
             dbCategoryNameEl.textContent = selectedCategory === '통합' ? '전체' : selectedCategory;
@@ -248,21 +245,20 @@
 
             const history = getUserHistory();
 
-            // [수정] 테이블 헤더와 열의 너비를 명시적으로 조정
+            // 테이블 헤더와 열의 너비를 명시적으로 조정
             let html = `<table><thead><tr>
                 <th style="width: 5%;">ID</th>
-                <th style="width: 25%;">문제 내용</th>
-                <th style="width: 20%;">정답 키워드</th>
+                <th style="width: 20%;">문제 내용</th>
+                <th style="width: 15%;">정답 키워드</th>
                 <th style="width: 10%;">정답/오답</th> 
                 <th style="width: 10%;">오답률</th> 
-                <th style="width: 30%;">해설</th> 
+                <th style="width: 40%;">해설</th> 
             </tr></thead><tbody>`;
 
             if (filteredDB.length === 0) {
                 html += `<tr><td colspan="6" style="text-align:center;">선택하신 카테고리에 등록된 문제가 없습니다.</td></tr>`;
             } else {
                 filteredDB.forEach(q => {
-                    // 학습 기록 계산
                     const h = history[q.id] || { correct: 0, incorrect: 0 };
                     const total = h.correct + h.incorrect;
                     const rate = total === 0 ? 0 : (h.incorrect / total) * 100;
@@ -278,7 +274,8 @@
                         <td class="keywords-col">${keywordsString}</td>
                         <td style="text-align: center;">${correctIncorrect}</td>
                         <td style="text-align: center;">${rateDisplay}</td>
-                        <td class="explanation-col">${q.explanation || '-'}</td> </tr>`;
+                        <td class="explanation-col">${q.explanation || '-'}</td>
+                    </tr>`;
                 });
             }
             html += `</tbody></table>`;
@@ -286,7 +283,7 @@
         }
 
         // ==========================================
-        // 5. 기존 퀴즈/관리 로직 (오답 시도 횟수 제한 로직 추가)
+        // 5. 기존 퀴즈/관리 로직
         // ==========================================
         
         function getUserHistory() {
@@ -341,9 +338,8 @@
         function loadQuestion() {
             currentQuestion = selectNextQuestion();
             
-            // [신규] 현재 문제 객체에 시도 횟수 필드 추가
             if (currentQuestion) {
-                currentQuestion.attempts = 0; 
+                currentQuestion.attempts = 0; // 시도 횟수 초기화
             }
 
             // UI 초기화
@@ -394,7 +390,7 @@
             if (!history[currentQuestion.id]) history[currentQuestion.id] = { correct: 0, incorrect: 0 };
             
             const keywordsString = currentQuestion.keywords.join(' / ');
-            const explanationHTML = `<div class="explanation">💡 해설: ${currentQuestion.explanation}</div>`;
+            const explanationHTML = `<div class="explanation">💡 해설: ${currentQuestion.explanation || '해설 없음'}</div>`;
 
             if (isCorrect) {
                 history[currentQuestion.id].correct++;
@@ -410,7 +406,7 @@
                 
                 if (currentQuestion.attempts === 1) {
                     // 1차 오답: 다시 생각해보세요
-                    resultMsgEl.innerHTML = `<span class="incorrect">❌ 오답입니다. 다시 생각해보세요. (두 번째 시도까지 가능)</span>`;
+                    resultMsgEl.innerHTML = `<span class="incorrect">❌ 오답입니다. 다시 생각해보세요. (한 번 더 시도 가능)</span>`;
                     answerInputEl.focus();
                     
                 } else {
